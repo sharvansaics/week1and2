@@ -2,107 +2,96 @@ import java.util.*;
 
 public class week1and2 {
 
-    // Trie Node
-    class TrieNode {
-        Map<Character, TrieNode> children = new HashMap<>();
-        boolean isEndOfWord;
-        Set<String> words = new HashSet<>(); // store words passing through this node
-    }
+    class Vehicle {
+        String licensePlate;
+        long entryTime;
 
-    private TrieNode root;
-    private Map<String, Integer> frequencyMap;
-
-    public week1and2() {
-        root = new TrieNode();
-        frequencyMap = new HashMap<>();
-    }
-
-    // Add query to system
-    public void addQuery(String query) {
-        frequencyMap.put(query, frequencyMap.getOrDefault(query, 0) + 1);
-
-        TrieNode node = root;
-        for (char ch : query.toCharArray()) {
-            node.children.putIfAbsent(ch, new TrieNode());
-            node = node.children.get(ch);
-            node.words.add(query);
+        Vehicle(String licensePlate, long entryTime) {
+            this.licensePlate = licensePlate;
+            this.entryTime = entryTime;
         }
-        node.isEndOfWord = true;
     }
 
-    // Get top k suggestions for prefix
-    public List<String> getSuggestions(String prefix, int k) {
-        TrieNode node = root;
-        for (char ch : prefix.toCharArray()) {
-            if (!node.children.containsKey(ch)) return new ArrayList<>();
-            node = node.children.get(ch);
-        }
+    private int capacity;
+    private Vehicle[] spots;
 
-        PriorityQueue<String> pq = new PriorityQueue<>(
-                (a, b) -> frequencyMap.get(a).equals(frequencyMap.get(b))
-                        ? a.compareTo(b)
-                        : frequencyMap.get(a) - frequencyMap.get(b)
-        );
-
-        for (String word : node.words) {
-            pq.offer(word);
-            if (pq.size() > k) pq.poll();
-        }
-
-        List<String> result = new ArrayList<>();
-        while (!pq.isEmpty()) result.add(pq.poll());
-
-        Collections.reverse(result);
-        return result;
+    public week1and2(int capacity) {
+        this.capacity = capacity;
+        spots = new Vehicle[capacity];
     }
 
-    // Example typo correction: return closest by edit distance
-    public String suggestCorrection(String query) {
-        int minDist = Integer.MAX_VALUE;
-        String closest = query;
+    // Simple hash function based on license plate
+    private int hash(String licensePlate) {
+        return Math.abs(licensePlate.hashCode()) % capacity;
+    }
 
-        for (String q : frequencyMap.keySet()) {
-            int dist = editDistance(query, q);
-            if (dist < minDist) {
-                minDist = dist;
-                closest = q;
+    // Park vehicle (linear probing)
+    public boolean park(String licensePlate) {
+        int index = hash(licensePlate);
+
+        for (int i = 0; i < capacity; i++) {
+            int probeIndex = (index + i) % capacity;
+            if (spots[probeIndex] == null) {
+                spots[probeIndex] = new Vehicle(licensePlate, System.currentTimeMillis());
+                System.out.println(licensePlate + " parked at spot " + probeIndex);
+                return true;
             }
         }
-        return closest;
+
+        System.out.println("Parking full! " + licensePlate + " cannot be parked.");
+        return false;
     }
 
-    // Compute Levenshtein distance
-    private int editDistance(String a, String b) {
-        int m = a.length(), n = b.length();
-        int[][] dp = new int[m+1][n+1];
+    // Exit vehicle and calculate billing
+    public void exit(String licensePlate) {
+        int index = hash(licensePlate);
 
-        for (int i = 0; i <= m; i++) dp[i][0] = i;
-        for (int j = 0; j <= n; j++) dp[0][j] = j;
-
-        for (int i = 1; i <= m; i++) {
-            for (int j = 1; j <= n; j++) {
-                if (a.charAt(i-1) == b.charAt(j-1)) dp[i][j] = dp[i-1][j-1];
-                else dp[i][j] = 1 + Math.min(dp[i-1][j-1],
-                        Math.min(dp[i-1][j], dp[i][j-1]));
+        for (int i = 0; i < capacity; i++) {
+            int probeIndex = (index + i) % capacity;
+            Vehicle v = spots[probeIndex];
+            if (v != null && v.licensePlate.equals(licensePlate)) {
+                long duration = (System.currentTimeMillis() - v.entryTime) / 1000; // seconds
+                spots[probeIndex] = null;
+                System.out.println(licensePlate + " exited from spot " + probeIndex
+                        + ". Duration: " + duration + " sec.");
+                return;
             }
         }
-        return dp[m][n];
+
+        System.out.println(licensePlate + " not found in parking lot.");
     }
 
-    public static void main(String[] args) {
-        week1and2 autocomplete = new week1and2();
+    // Find nearest available spot to entrance
+    public int nearestAvailable() {
+        for (int i = 0; i < capacity; i++) {
+            if (spots[i] == null) return i;
+        }
+        return -1;
+    }
 
-        // Add sample queries
-        autocomplete.addQuery("machine learning");
-        autocomplete.addQuery("machine learning");
-        autocomplete.addQuery("machine");
-        autocomplete.addQuery("math tricks");
-        autocomplete.addQuery("math games");
-        autocomplete.addQuery("mars rover");
-        autocomplete.addQuery("martin luther king");
+    // Display parking statistics
+    public void statistics() {
+        int occupied = 0;
+        for (Vehicle v : spots) if (v != null) occupied++;
+        double occupancyRate = (occupied * 100.0) / capacity;
+        System.out.println("Occupied spots: " + occupied + "/" + capacity);
+        System.out.println("Average occupancy: " + occupancyRate + "%");
+    }
 
-        System.out.println("Suggestions for 'ma': " + autocomplete.getSuggestions("ma", 5));
-        System.out.println("Suggestions for 'mach': " + autocomplete.getSuggestions("mach", 5));
-        System.out.println("Correction for 'mashine learning': " + autocomplete.suggestCorrection("mashine learning"));
+    public static void main(String[] args) throws InterruptedException {
+        week1and2 lot = new week1and2(10);
+
+        lot.park("KA01AB1234");
+        lot.park("KA01AB5678");
+        lot.park("KA02XY9999");
+
+        System.out.println("Nearest available spot: " + lot.nearestAvailable());
+
+        Thread.sleep(2000); // simulate parking duration
+
+        lot.exit("KA01AB1234");
+        lot.exit("KA02XY9999");
+
+        lot.statistics();
     }
 }
