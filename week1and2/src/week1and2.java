@@ -1,82 +1,77 @@
 import java.util.*;
 
-public class week1and2 {
+public class FlashSaleInventoryManager {
 
-    // Store registered usernames
-    private Set<String> usernames;
+    // Product stock storage
+    private Map<String, Integer> stock;
 
-    // Track frequency of attempted usernames
-    private Map<String, Integer> attemptCount;
+    // Waiting list for each product
+    private Map<String, Queue<String>> waitingList;
 
-    public week1and2() {
-        usernames = new HashSet<>();
-        attemptCount = new HashMap<>();
+    public FlashSaleInventoryManager() {
+        stock = new HashMap<>();
+        waitingList = new HashMap<>();
     }
 
-    // Register username
-    public void registerUsername(String username) {
-        usernames.add(username.toLowerCase());
+    // Add product with stock
+    public void addProduct(String productId, int quantity) {
+        stock.put(productId, quantity);
+        waitingList.put(productId, new LinkedList<>());
     }
 
-    // Check availability
-    public boolean isAvailable(String username) {
-        username = username.toLowerCase();
-
-        // Track popularity
-        attemptCount.put(username, attemptCount.getOrDefault(username, 0) + 1);
-
-        return !usernames.contains(username);
+    // Check stock availability
+    public boolean isAvailable(String productId) {
+        return stock.getOrDefault(productId, 0) > 0;
     }
 
-    // Suggest similar usernames
-    public List<String> suggestUsernames(String username) {
-        List<String> suggestions = new ArrayList<>();
-        username = username.toLowerCase();
+    // Purchase request
+    public synchronized void purchase(String userId, String productId) {
 
-        // Simple suggestions with numbers
-        for (int i = 1; i <= 5; i++) {
-            String suggestion = username + i;
+        int currentStock = stock.getOrDefault(productId, 0);
 
-            if (!usernames.contains(suggestion)) {
-                suggestions.add(suggestion);
-            }
+        if (currentStock > 0) {
+            stock.put(productId, currentStock - 1);
+            System.out.println(userId + " successfully purchased " + productId);
+        } else {
+            waitingList.get(productId).add(userId);
+            System.out.println(userId + " added to waiting list for " + productId);
         }
-
-        // Random suggestions if needed
-        Random rand = new Random();
-        while (suggestions.size() < 5) {
-            String suggestion = username + rand.nextInt(1000);
-            if (!usernames.contains(suggestion)) {
-                suggestions.add(suggestion);
-            }
-        }
-
-        return suggestions;
     }
 
-    // Get attempt count
-    public int getAttemptCount(String username) {
-        return attemptCount.getOrDefault(username.toLowerCase(), 0);
+    // Restock product and serve waiting list
+    public synchronized void restock(String productId, int quantity) {
+
+        int newStock = stock.getOrDefault(productId, 0) + quantity;
+        stock.put(productId, newStock);
+
+        Queue<String> queue = waitingList.get(productId);
+
+        while (stock.get(productId) > 0 && !queue.isEmpty()) {
+            String user = queue.poll();
+            stock.put(productId, stock.get(productId) - 1);
+            System.out.println(user + " purchased from waiting list: " + productId);
+        }
+    }
+
+    // Display stock
+    public void showStock(String productId) {
+        System.out.println("Stock for " + productId + ": " + stock.getOrDefault(productId, 0));
     }
 
     public static void main(String[] args) {
 
-        week1and2 system = new week1and2();
+        FlashSaleInventoryManager manager = new FlashSaleInventoryManager();
 
-        // Existing usernames
-        system.registerUsername("alex");
-        system.registerUsername("john");
-        system.registerUsername("emma");
+        manager.addProduct("Laptop", 3);
 
-        String checkName = "alex";
+        manager.purchase("User1", "Laptop");
+        manager.purchase("User2", "Laptop");
+        manager.purchase("User3", "Laptop");
+        manager.purchase("User4", "Laptop");
+        manager.purchase("User5", "Laptop");
 
-        if (system.isAvailable(checkName)) {
-            System.out.println("Username available!");
-        } else {
-            System.out.println("Username taken.");
-            System.out.println("Suggestions: " + system.suggestUsernames(checkName));
-        }
+        manager.showStock("Laptop");
 
-        System.out.println("Attempt count: " + system.getAttemptCount(checkName));
+        manager.restock("Laptop", 2);
     }
 }
