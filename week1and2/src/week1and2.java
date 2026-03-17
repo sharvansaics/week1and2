@@ -1,87 +1,84 @@
 import java.util.*;
 
-public class PlagiarismDetector {
+public class week1and2 {
 
-    private Map<String, List<String>> nGramIndex = new HashMap<>();
-    private Map<String, String> documents = new HashMap<>();
+    // Page visit counts
+    private Map<String, Integer> pageVisits = new HashMap<>();
 
-    private int n = 3; // n-gram size
+    // Unique visitors per page
+    private Map<String, Set<String>> uniqueVisitors = new HashMap<>();
 
-    // Add document to system
-    public void addDocument(String docId, String text) {
+    // Traffic source tracking
+    private Map<String, Integer> trafficSources = new HashMap<>();
 
-        documents.put(docId, text);
+    // Location tracking
+    private Map<String, Integer> locations = new HashMap<>();
 
-        List<String> ngrams = generateNGrams(text);
+    // Process page view event
+    public void processEvent(String userId, String pageUrl,
+                             String source, String location) {
 
-        for (String gram : ngrams) {
+        // Update page visits
+        pageVisits.put(pageUrl,
+                pageVisits.getOrDefault(pageUrl, 0) + 1);
 
-            nGramIndex.putIfAbsent(gram, new ArrayList<>());
-            nGramIndex.get(gram).add(docId);
-        }
+        // Update unique visitors
+        uniqueVisitors.putIfAbsent(pageUrl, new HashSet<>());
+        uniqueVisitors.get(pageUrl).add(userId);
+
+        // Update traffic source
+        trafficSources.put(source,
+                trafficSources.getOrDefault(source, 0) + 1);
+
+        // Update location count
+        locations.put(location,
+                locations.getOrDefault(location, 0) + 1);
     }
 
-    // Generate n-grams
-    private List<String> generateNGrams(String text) {
+    // Get top 10 pages
+    public List<String> getTopPages() {
 
-        List<String> grams = new ArrayList<>();
+        PriorityQueue<Map.Entry<String, Integer>> pq =
+                new PriorityQueue<>((a, b) -> b.getValue() - a.getValue());
 
-        String[] words = text.toLowerCase().split("\\s+");
+        pq.addAll(pageVisits.entrySet());
 
-        for (int i = 0; i <= words.length - n; i++) {
+        List<String> topPages = new ArrayList<>();
 
-            String gram = "";
-
-            for (int j = 0; j < n; j++) {
-                gram += words[i + j] + " ";
-            }
-
-            grams.add(gram.trim());
+        for (int i = 0; i < 10 && !pq.isEmpty(); i++) {
+            topPages.add(pq.poll().getKey());
         }
 
-        return grams;
+        return topPages;
     }
 
-    // Check plagiarism
-    public void checkDocument(String docId, String text) {
+    // Dashboard update
+    public void showDashboard() {
 
-        List<String> ngrams = generateNGrams(text);
+        System.out.println("Top Pages: " + getTopPages());
 
-        Map<String, Integer> matchCount = new HashMap<>();
+        System.out.println("Traffic Sources: " + trafficSources);
 
-        for (String gram : ngrams) {
+        System.out.println("Locations: " + locations);
 
-            if (nGramIndex.containsKey(gram)) {
-
-                for (String existingDoc : nGramIndex.get(gram)) {
-
-                    matchCount.put(existingDoc,
-                            matchCount.getOrDefault(existingDoc, 0) + 1);
-                }
-            }
-        }
-
-        for (String doc : matchCount.keySet()) {
-
-            int matches = matchCount.get(doc);
-
-            double similarity = (matches * 100.0) / ngrams.size();
-
-            System.out.println("Similarity with " + doc + " = " + similarity + "%");
+        System.out.println("Unique Visitors Per Page:");
+        for (String page : uniqueVisitors.keySet()) {
+            System.out.println(page + " : " + uniqueVisitors.get(page).size());
         }
     }
 
     public static void main(String[] args) {
 
-        PlagiarismDetector detector = new PlagiarismDetector();
+        week1and2 dashboard =
+                new week1and2();
 
-        detector.addDocument("Doc1",
-                "machine learning is very powerful technology");
+        // Simulated traffic events
+        dashboard.processEvent("U1", "/home", "Google", "India");
+        dashboard.processEvent("U2", "/sports", "Facebook", "USA");
+        dashboard.processEvent("U3", "/home", "Direct", "India");
+        dashboard.processEvent("U4", "/tech", "Google", "UK");
+        dashboard.processEvent("U1", "/sports", "Google", "India");
 
-        detector.addDocument("Doc2",
-                "artificial intelligence and machine learning are related");
-
-        detector.checkDocument("NewDoc",
-                "machine learning is powerful technology");
+        dashboard.showDashboard();
     }
 }
