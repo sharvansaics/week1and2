@@ -1,95 +1,87 @@
 import java.util.*;
 
-public class week1and2 {
+public class PlagiarismDetector {
 
-    // Entry class
-    class Entry {
-        String ip;
-        long expiryTime;
+    private Map<String, List<String>> nGramIndex = new HashMap<>();
+    private Map<String, String> documents = new HashMap<>();
 
-        Entry(String ip, long ttlSeconds) {
-            this.ip = ip;
-            this.expiryTime = System.currentTimeMillis() + ttlSeconds * 1000;
-        }
+    private int n = 3; // n-gram size
 
-        boolean isExpired() {
-            return System.currentTimeMillis() > expiryTime;
+    // Add document to system
+    public void addDocument(String docId, String text) {
+
+        documents.put(docId, text);
+
+        List<String> ngrams = generateNGrams(text);
+
+        for (String gram : ngrams) {
+
+            nGramIndex.putIfAbsent(gram, new ArrayList<>());
+            nGramIndex.get(gram).add(docId);
         }
     }
 
-    private int capacity;
-    private Map<String, Entry> cache;
-    private int hits = 0;
-    private int misses = 0;
+    // Generate n-grams
+    private List<String> generateNGrams(String text) {
 
-    public week1and2(int capacity) {
+        List<String> grams = new ArrayList<>();
 
-        this.capacity = capacity;
+        String[] words = text.toLowerCase().split("\\s+");
 
-        cache = new LinkedHashMap<String, Entry>(capacity, 0.75f, true) {
-            protected boolean removeEldestEntry(Map.Entry<String, Entry> eldest) {
-                return size() > week1and2.this.capacity;
+        for (int i = 0; i <= words.length - n; i++) {
+
+            String gram = "";
+
+            for (int j = 0; j < n; j++) {
+                gram += words[i + j] + " ";
             }
-        };
-    }
 
-    // Add domain
-    public void put(String domain, String ip, int ttlSeconds) {
-        cache.put(domain, new Entry(ip, ttlSeconds));
-    }
-
-    // Get IP
-    public String get(String domain) {
-
-        Entry entry = cache.get(domain);
-
-        if (entry == null) {
-            misses++;
-            return queryUpstreamDNS(domain);
+            grams.add(gram.trim());
         }
 
-        if (entry.isExpired()) {
-            cache.remove(domain);
-            misses++;
-            return queryUpstreamDNS(domain);
+        return grams;
+    }
+
+    // Check plagiarism
+    public void checkDocument(String docId, String text) {
+
+        List<String> ngrams = generateNGrams(text);
+
+        Map<String, Integer> matchCount = new HashMap<>();
+
+        for (String gram : ngrams) {
+
+            if (nGramIndex.containsKey(gram)) {
+
+                for (String existingDoc : nGramIndex.get(gram)) {
+
+                    matchCount.put(existingDoc,
+                            matchCount.getOrDefault(existingDoc, 0) + 1);
+                }
+            }
         }
 
-        hits++;
-        return entry.ip;
-    }
+        for (String doc : matchCount.keySet()) {
 
-    // Simulate upstream DNS lookup
-    private String queryUpstreamDNS(String domain) {
+            int matches = matchCount.get(doc);
 
-        String fakeIP = "192.168.1." + new Random().nextInt(255);
-        System.out.println("Querying upstream DNS for " + domain);
+            double similarity = (matches * 100.0) / ngrams.size();
 
-        put(domain, fakeIP, 5); // TTL 5 seconds
-        return fakeIP;
-    }
-
-    // Cache statistics
-    public void printStats() {
-        System.out.println("Cache Hits: " + hits);
-        System.out.println("Cache Misses: " + misses);
-
-        int total = hits + misses;
-        if (total > 0) {
-            System.out.println("Hit Ratio: " + (hits * 100.0 / total) + "%");
+            System.out.println("Similarity with " + doc + " = " + similarity + "%");
         }
     }
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
 
-        week1and2 dnsCache = new week1and2(3);
+        PlagiarismDetector detector = new PlagiarismDetector();
 
-        System.out.println(dnsCache.get("google.com"));
-        System.out.println(dnsCache.get("google.com")); // hit
+        detector.addDocument("Doc1",
+                "machine learning is very powerful technology");
 
-        Thread.sleep(6000); // TTL expire
+        detector.addDocument("Doc2",
+                "artificial intelligence and machine learning are related");
 
-        System.out.println(dnsCache.get("google.com")); // miss again
-
-        dnsCache.printStats();
+        detector.checkDocument("NewDoc",
+                "machine learning is powerful technology");
     }
 }
