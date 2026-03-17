@@ -2,83 +2,60 @@ import java.util.*;
 
 public class week1and2 {
 
-    // Page visit counts
-    private Map<String, Integer> pageVisits = new HashMap<>();
+    class TokenBucket {
+        int tokens;
+        long lastRefillTime;
 
-    // Unique visitors per page
-    private Map<String, Set<String>> uniqueVisitors = new HashMap<>();
-
-    // Traffic source tracking
-    private Map<String, Integer> trafficSources = new HashMap<>();
-
-    // Location tracking
-    private Map<String, Integer> locations = new HashMap<>();
-
-    // Process page view event
-    public void processEvent(String userId, String pageUrl,
-                             String source, String location) {
-
-        // Update page visits
-        pageVisits.put(pageUrl,
-                pageVisits.getOrDefault(pageUrl, 0) + 1);
-
-        // Update unique visitors
-        uniqueVisitors.putIfAbsent(pageUrl, new HashSet<>());
-        uniqueVisitors.get(pageUrl).add(userId);
-
-        // Update traffic source
-        trafficSources.put(source,
-                trafficSources.getOrDefault(source, 0) + 1);
-
-        // Update location count
-        locations.put(location,
-                locations.getOrDefault(location, 0) + 1);
+        TokenBucket(int capacity) {
+            this.tokens = capacity;
+            this.lastRefillTime = System.currentTimeMillis();
+        }
     }
 
-    // Get top 10 pages
-    public List<String> getTopPages() {
+    private Map<String, TokenBucket> clients = new HashMap<>();
 
-        PriorityQueue<Map.Entry<String, Integer>> pq =
-                new PriorityQueue<>((a, b) -> b.getValue() - a.getValue());
+    private final int MAX_TOKENS = 1000;
+    private final long REFILL_TIME = 3600000; // 1 hour
 
-        pq.addAll(pageVisits.entrySet());
+    public synchronized boolean allowRequest(String clientId) {
 
-        List<String> topPages = new ArrayList<>();
+        clients.putIfAbsent(clientId, new TokenBucket(MAX_TOKENS));
 
-        for (int i = 0; i < 10 && !pq.isEmpty(); i++) {
-            topPages.add(pq.poll().getKey());
+        TokenBucket bucket = clients.get(clientId);
+
+        refillTokens(bucket);
+
+        if (bucket.tokens > 0) {
+            bucket.tokens--;
+            return true;
         }
 
-        return topPages;
+        return false;
     }
 
-    // Dashboard update
-    public void showDashboard() {
+    private void refillTokens(TokenBucket bucket) {
 
-        System.out.println("Top Pages: " + getTopPages());
+        long currentTime = System.currentTimeMillis();
 
-        System.out.println("Traffic Sources: " + trafficSources);
-
-        System.out.println("Locations: " + locations);
-
-        System.out.println("Unique Visitors Per Page:");
-        for (String page : uniqueVisitors.keySet()) {
-            System.out.println(page + " : " + uniqueVisitors.get(page).size());
+        if (currentTime - bucket.lastRefillTime >= REFILL_TIME) {
+            bucket.tokens = MAX_TOKENS;
+            bucket.lastRefillTime = currentTime;
         }
     }
 
     public static void main(String[] args) {
 
-        week1and2 dashboard =
-                new week1and2();
+        week1and2 limiter = new week1and2();
 
-        // Simulated traffic events
-        dashboard.processEvent("U1", "/home", "Google", "India");
-        dashboard.processEvent("U2", "/sports", "Facebook", "USA");
-        dashboard.processEvent("U3", "/home", "Direct", "India");
-        dashboard.processEvent("U4", "/tech", "Google", "UK");
-        dashboard.processEvent("U1", "/sports", "Google", "India");
+        String client = "Client1";
 
-        dashboard.showDashboard();
+        for (int i = 0; i < 1005; i++) {
+
+            if (limiter.allowRequest(client)) {
+                System.out.println("Request " + (i + 1) + " allowed");
+            } else {
+                System.out.println("Rate limit exceeded for " + client);
+            }
+        }
     }
 }
