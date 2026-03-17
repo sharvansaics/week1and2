@@ -1,77 +1,95 @@
 import java.util.*;
 
-public class FlashSaleInventoryManager {
+public class week1and2 {
 
-    // Product stock storage
-    private Map<String, Integer> stock;
+    // Entry class
+    class Entry {
+        String ip;
+        long expiryTime;
 
-    // Waiting list for each product
-    private Map<String, Queue<String>> waitingList;
+        Entry(String ip, long ttlSeconds) {
+            this.ip = ip;
+            this.expiryTime = System.currentTimeMillis() + ttlSeconds * 1000;
+        }
 
-    public FlashSaleInventoryManager() {
-        stock = new HashMap<>();
-        waitingList = new HashMap<>();
-    }
-
-    // Add product with stock
-    public void addProduct(String productId, int quantity) {
-        stock.put(productId, quantity);
-        waitingList.put(productId, new LinkedList<>());
-    }
-
-    // Check stock availability
-    public boolean isAvailable(String productId) {
-        return stock.getOrDefault(productId, 0) > 0;
-    }
-
-    // Purchase request
-    public synchronized void purchase(String userId, String productId) {
-
-        int currentStock = stock.getOrDefault(productId, 0);
-
-        if (currentStock > 0) {
-            stock.put(productId, currentStock - 1);
-            System.out.println(userId + " successfully purchased " + productId);
-        } else {
-            waitingList.get(productId).add(userId);
-            System.out.println(userId + " added to waiting list for " + productId);
+        boolean isExpired() {
+            return System.currentTimeMillis() > expiryTime;
         }
     }
 
-    // Restock product and serve waiting list
-    public synchronized void restock(String productId, int quantity) {
+    private int capacity;
+    private Map<String, Entry> cache;
+    private int hits = 0;
+    private int misses = 0;
 
-        int newStock = stock.getOrDefault(productId, 0) + quantity;
-        stock.put(productId, newStock);
+    public week1and2(int capacity) {
 
-        Queue<String> queue = waitingList.get(productId);
+        this.capacity = capacity;
 
-        while (stock.get(productId) > 0 && !queue.isEmpty()) {
-            String user = queue.poll();
-            stock.put(productId, stock.get(productId) - 1);
-            System.out.println(user + " purchased from waiting list: " + productId);
+        cache = new LinkedHashMap<String, Entry>(capacity, 0.75f, true) {
+            protected boolean removeEldestEntry(Map.Entry<String, Entry> eldest) {
+                return size() > week1and2.this.capacity;
+            }
+        };
+    }
+
+    // Add domain
+    public void put(String domain, String ip, int ttlSeconds) {
+        cache.put(domain, new Entry(ip, ttlSeconds));
+    }
+
+    // Get IP
+    public String get(String domain) {
+
+        Entry entry = cache.get(domain);
+
+        if (entry == null) {
+            misses++;
+            return queryUpstreamDNS(domain);
+        }
+
+        if (entry.isExpired()) {
+            cache.remove(domain);
+            misses++;
+            return queryUpstreamDNS(domain);
+        }
+
+        hits++;
+        return entry.ip;
+    }
+
+    // Simulate upstream DNS lookup
+    private String queryUpstreamDNS(String domain) {
+
+        String fakeIP = "192.168.1." + new Random().nextInt(255);
+        System.out.println("Querying upstream DNS for " + domain);
+
+        put(domain, fakeIP, 5); // TTL 5 seconds
+        return fakeIP;
+    }
+
+    // Cache statistics
+    public void printStats() {
+        System.out.println("Cache Hits: " + hits);
+        System.out.println("Cache Misses: " + misses);
+
+        int total = hits + misses;
+        if (total > 0) {
+            System.out.println("Hit Ratio: " + (hits * 100.0 / total) + "%");
         }
     }
 
-    // Display stock
-    public void showStock(String productId) {
-        System.out.println("Stock for " + productId + ": " + stock.getOrDefault(productId, 0));
-    }
+    public static void main(String[] args) throws InterruptedException {
 
-    public static void main(String[] args) {
+        week1and2 dnsCache = new week1and2(3);
 
-        FlashSaleInventoryManager manager = new FlashSaleInventoryManager();
+        System.out.println(dnsCache.get("google.com"));
+        System.out.println(dnsCache.get("google.com")); // hit
 
-        manager.addProduct("Laptop", 3);
+        Thread.sleep(6000); // TTL expire
 
-        manager.purchase("User1", "Laptop");
-        manager.purchase("User2", "Laptop");
-        manager.purchase("User3", "Laptop");
-        manager.purchase("User4", "Laptop");
-        manager.purchase("User5", "Laptop");
+        System.out.println(dnsCache.get("google.com")); // miss again
 
-        manager.showStock("Laptop");
-
-        manager.restock("Laptop", 2);
+        dnsCache.printStats();
     }
 }
