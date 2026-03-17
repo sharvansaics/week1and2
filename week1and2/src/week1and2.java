@@ -2,96 +2,140 @@ import java.util.*;
 
 public class week1and2 {
 
-    class Vehicle {
-        String licensePlate;
-        long entryTime;
+    // Transaction class
+    static class Transaction {
+        String id;
+        String account;
+        String merchant;
+        double amount;
+        long timestamp; // in milliseconds
 
-        Vehicle(String licensePlate, long entryTime) {
-            this.licensePlate = licensePlate;
-            this.entryTime = entryTime;
+        Transaction(String id, String account, String merchant, double amount, long timestamp) {
+            this.id = id;
+            this.account = account;
+            this.merchant = merchant;
+            this.amount = amount;
+            this.timestamp = timestamp;
         }
     }
 
-    private int capacity;
-    private Vehicle[] spots;
+    // 1. Classic Two-Sum
+    public static List<List<Transaction>> twoSum(List<Transaction> transactions, double target) {
+        Map<Double, Transaction> map = new HashMap<>();
+        List<List<Transaction>> result = new ArrayList<>();
 
-    public week1and2(int capacity) {
-        this.capacity = capacity;
-        spots = new Vehicle[capacity];
-    }
-
-    // Simple hash function based on license plate
-    private int hash(String licensePlate) {
-        return Math.abs(licensePlate.hashCode()) % capacity;
-    }
-
-    // Park vehicle (linear probing)
-    public boolean park(String licensePlate) {
-        int index = hash(licensePlate);
-
-        for (int i = 0; i < capacity; i++) {
-            int probeIndex = (index + i) % capacity;
-            if (spots[probeIndex] == null) {
-                spots[probeIndex] = new Vehicle(licensePlate, System.currentTimeMillis());
-                System.out.println(licensePlate + " parked at spot " + probeIndex);
-                return true;
+        for (Transaction t : transactions) {
+            double complement = target - t.amount;
+            if (map.containsKey(complement)) {
+                result.add(Arrays.asList(map.get(complement), t));
             }
+            map.put(t.amount, t);
         }
-
-        System.out.println("Parking full! " + licensePlate + " cannot be parked.");
-        return false;
+        return result;
     }
 
-    // Exit vehicle and calculate billing
-    public void exit(String licensePlate) {
-        int index = hash(licensePlate);
+    // 2. Two-Sum with time window (e.g., 1 hour)
+    public static List<List<Transaction>> twoSumTimeWindow(List<Transaction> transactions, double target, long windowMs) {
+        Map<Double, List<Transaction>> map = new HashMap<>();
+        List<List<Transaction>> result = new ArrayList<>();
 
-        for (int i = 0; i < capacity; i++) {
-            int probeIndex = (index + i) % capacity;
-            Vehicle v = spots[probeIndex];
-            if (v != null && v.licensePlate.equals(licensePlate)) {
-                long duration = (System.currentTimeMillis() - v.entryTime) / 1000; // seconds
-                spots[probeIndex] = null;
-                System.out.println(licensePlate + " exited from spot " + probeIndex
-                        + ". Duration: " + duration + " sec.");
-                return;
+        for (Transaction t : transactions) {
+            double complement = target - t.amount;
+            if (map.containsKey(complement)) {
+                for (Transaction candidate : map.get(complement)) {
+                    if (Math.abs(candidate.timestamp - t.timestamp) <= windowMs) {
+                        result.add(Arrays.asList(candidate, t));
+                    }
+                }
             }
+            map.putIfAbsent(t.amount, new ArrayList<>());
+            map.get(t.amount).add(t);
+        }
+        return result;
+    }
+
+    // 3. K-Sum (using recursion)
+    public static List<List<Transaction>> kSum(List<Transaction> transactions, int k, double target) {
+        List<List<Transaction>> result = new ArrayList<>();
+        kSumHelper(transactions, k, 0, target, new ArrayList<>(), result);
+        return result;
+    }
+
+    private static void kSumHelper(List<Transaction> transactions, int k, int start, double target,
+                                   List<Transaction> current, List<List<Transaction>> result) {
+        if (k == 2) {
+            // Classic two-sum for remaining transactions
+            Map<Double, Transaction> map = new HashMap<>();
+            for (int i = start; i < transactions.size(); i++) {
+                Transaction t = transactions.get(i);
+                double complement = target - t.amount;
+                if (map.containsKey(complement)) {
+                    List<Transaction> temp = new ArrayList<>(current);
+                    temp.add(map.get(complement));
+                    temp.add(t);
+                    result.add(temp);
+                }
+                map.put(t.amount, t);
+            }
+            return;
         }
 
-        System.out.println(licensePlate + " not found in parking lot.");
-    }
-
-    // Find nearest available spot to entrance
-    public int nearestAvailable() {
-        for (int i = 0; i < capacity; i++) {
-            if (spots[i] == null) return i;
+        for (int i = start; i <= transactions.size() - k; i++) {
+            current.add(transactions.get(i));
+            kSumHelper(transactions, k - 1, i + 1, target - transactions.get(i).amount, current, result);
+            current.remove(current.size() - 1);
         }
-        return -1;
     }
 
-    // Display parking statistics
-    public void statistics() {
-        int occupied = 0;
-        for (Vehicle v : spots) if (v != null) occupied++;
-        double occupancyRate = (occupied * 100.0) / capacity;
-        System.out.println("Occupied spots: " + occupied + "/" + capacity);
-        System.out.println("Average occupancy: " + occupancyRate + "%");
+    // 4. Duplicate detection: same amount, same merchant, different accounts
+    public static List<List<Transaction>> detectDuplicates(List<Transaction> transactions) {
+        Map<String, List<Transaction>> map = new HashMap<>();
+        List<List<Transaction>> result = new ArrayList<>();
+
+        for (Transaction t : transactions) {
+            String key = t.amount + "_" + t.merchant;
+            if (map.containsKey(key)) {
+                for (Transaction prev : map.get(key)) {
+                    if (!prev.account.equals(t.account)) {
+                        result.add(Arrays.asList(prev, t));
+                    }
+                }
+            }
+            map.putIfAbsent(key, new ArrayList<>());
+            map.get(key).add(t);
+        }
+        return result;
     }
 
-    public static void main(String[] args) throws InterruptedException {
-        week1and2 lot = new week1and2(10);
+    // Example usage
+    public static void main(String[] args) {
+        long now = System.currentTimeMillis();
+        List<Transaction> transactions = Arrays.asList(
+                new Transaction("T1", "A1", "Amazon", 100, now),
+                new Transaction("T2", "A2", "Amazon", 200, now + 1000),
+                new Transaction("T3", "A3", "Walmart", 150, now + 2000),
+                new Transaction("T4", "A4", "Amazon", 100, now + 3000),
+                new Transaction("T5", "A5", "Amazon", 200, now + 3500)
+        );
 
-        lot.park("KA01AB1234");
-        lot.park("KA01AB5678");
-        lot.park("KA02XY9999");
+        System.out.println("Classic Two-Sum (target=300):");
+        for (List<Transaction> pair : twoSum(transactions, 300)) {
+            System.out.println(pair.get(0).id + " + " + pair.get(1).id);
+        }
 
-        System.out.println("Nearest available spot: " + lot.nearestAvailable());
+        System.out.println("\nTwo-Sum with 1 hour window (target=300):");
+        for (List<Transaction> pair : twoSumTimeWindow(transactions, 300, 3600 * 1000)) {
+            System.out.println(pair.get(0).id + " + " + pair.get(1).id);
+        }
 
-        Thread.sleep(2000); // simulate parking duration
+        System.out.println("\nK-Sum k=3, target=450:");
+        for (List<Transaction> triplet : kSum(transactions, 3, 450)) {
+            System.out.println(triplet.get(0).id + " + " + triplet.get(1).id + " + " + triplet.get(2).id);
+        }
 
-        lot.exit("KA01AB1234");
-        lot.exit("KA02XY9999");
-
-        lot.statistics();
+        System.out.println("\nDuplicate detection (same amount, same merchant, different accounts):");
+        for (List<Transaction> dup : detectDuplicates(transactions)) {
+            System.out.println(dup.get(0).id + " & " + dup.get(1).id);
+        }
     }
 }
